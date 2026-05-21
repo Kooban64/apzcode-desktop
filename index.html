@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ApzCODE Desktop Download</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d1117;
+      --card: #161b22;
+      --text: #e6edf3;
+      --muted: #9ba7b4;
+      --accent: #2f81f7;
+      --ok: #238636;
+      --warn: #d29922;
+      --border: #30363d;
+    }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 20px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    h1 { margin-top: 0; }
+    .muted { color: var(--muted); }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .btn {
+      display: inline-block;
+      border: 1px solid transparent;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+    .btn.secondary {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--text);
+    }
+    code {
+      background: #0b0f14;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px 6px;
+    }
+    ul { margin-top: 8px; }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <h1>Download ApzCODE</h1>
+      <p class="muted">One-click installer from the latest public release.</p>
+      <div class="row">
+        <a id="primaryDownload" class="btn" href="https://github.com/Kooban64/apzcode-desktop/releases" target="_blank" rel="noopener noreferrer">Open Releases</a>
+        <a class="btn secondary" href="https://github.com/Kooban64/apzcode-desktop/releases" target="_blank" rel="noopener noreferrer">All Versions</a>
+      </div>
+      <p id="status" class="muted" style="margin-top:12px">Detecting latest release...</p>
+    </section>
+
+    <section class="card">
+      <h2 style="margin-top:0">Install</h2>
+      <ul>
+        <li>Windows: run the downloaded <code>.exe</code> installer.</li>
+        <li>macOS: open <code>.dmg</code> and drag to Applications.</li>
+        <li>Linux: install <code>.deb</code>/<code>.rpm</code> with your package manager.</li>
+      </ul>
+      <p class="muted">Need another build? Use <strong>All Versions</strong>.</p>
+    </section>
+  </main>
+
+  <script>
+    (async function () {
+      const owner = "Kooban64";
+      const repo = "apzcode-desktop";
+      const status = document.getElementById("status");
+      const primary = document.getElementById("primaryDownload");
+
+      function detectPlatform() {
+        const ua = navigator.userAgent.toLowerCase();
+        if (ua.includes("windows")) return "windows";
+        if (ua.includes("mac")) return "mac";
+        if (ua.includes("linux")) return "linux";
+        return "unknown";
+      }
+
+      function pickAsset(assets, platform) {
+        const names = assets.map(a => a.name.toLowerCase());
+        const byName = n => assets.find(a => a.name.toLowerCase().includes(n));
+
+        if (platform === "windows") {
+          return byName("usersetup") || byName("setup") || byName(".exe");
+        }
+        if (platform === "mac") {
+          return byName(".dmg") || byName("darwin") || byName("mac");
+        }
+        if (platform === "linux") {
+          return byName(".deb") || byName(".rpm") || byName("appimage");
+        }
+        return assets.find(a => a.name.toLowerCase().endsWith(".exe"))
+          || assets.find(a => a.name.toLowerCase().endsWith(".dmg"))
+          || assets.find(a => a.name.toLowerCase().endsWith(".deb"))
+          || assets.find(a => a.name.toLowerCase().endsWith(".rpm"))
+          || assets[0];
+      }
+
+      try {
+        const api = `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
+        const res = await fetch(api, { headers: { Accept: "application/vnd.github+json" } });
+        if (!res.ok) throw new Error(`GitHub API status ${res.status}`);
+        const rel = await res.json();
+        const assets = rel.assets || [];
+        const platform = detectPlatform();
+
+        if (!assets.length) {
+          status.textContent = "No installer assets in latest release yet. Open All Versions.";
+          status.className = "warn";
+          return;
+        }
+
+        const chosen = pickAsset(assets, platform);
+        if (!chosen) {
+          status.textContent = "No matching installer found for your OS yet.";
+          status.className = "warn";
+          return;
+        }
+
+        primary.href = chosen.browser_download_url;
+        primary.textContent = `Download ${chosen.name}`;
+        status.textContent = `Latest: ${rel.tag_name} • Recommended for ${platform}`;
+        status.className = "ok";
+      } catch (e) {
+        status.textContent = "Could not fetch latest release automatically. Use All Versions.";
+        status.className = "warn";
+      }
+    })();
+  </script>
+</body>
+</html>
