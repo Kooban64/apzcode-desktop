@@ -154,13 +154,13 @@
         const byName = n => assets.find(a => a.name.toLowerCase().includes(n));
 
         if (platform === "windows") {
-          return byName("usersetup") || byName("setup") || byName(".exe");
+          return byName("usersetup") || byName("setup") || byName(".exe") || null;
         }
         if (platform === "mac") {
-          return byName(".dmg") || byName("darwin") || byName("mac");
+          return byName(".dmg") || byName("darwin") || byName("mac") || null;
         }
         if (platform === "linux") {
-          return byName(".deb") || byName(".rpm") || byName("appimage");
+          return byName(".deb") || byName(".rpm") || byName("appimage") || null;
         }
         return assets.find(a => a.name.toLowerCase().endsWith(".exe"))
           || assets.find(a => a.name.toLowerCase().endsWith(".dmg"))
@@ -252,8 +252,11 @@
 
           const chosen = pickAsset(assets, platform);
           if (!chosen) {
-            status.textContent = "No matching installer found for your OS yet.";
+            status.textContent = `No ${platform} installer in ${channel} release ${rel.tag_name} yet.`;
             status.className = "warn";
+            primary.href = `https://github.com/${owner}/${repo}/releases/tag/${rel.tag_name}`;
+            primary.textContent = "Open Release Assets";
+            platformInstall.innerHTML = `<p class="muted">No installer for your OS in this channel yet. Check <strong>All Versions</strong> or switch channel.</p>`;
             return;
           }
 
