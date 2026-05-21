@@ -34,7 +34,7 @@
       padding: 20px;
       margin-bottom: 16px;
     }
-    h1 { margin-top: 0; }
+    h1, h2 { margin-top: 0; }
     .muted { color: var(--muted); }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     .btn {
@@ -46,11 +46,22 @@
       padding: 10px 14px;
       border-radius: 8px;
       font-weight: 600;
+      cursor: pointer;
     }
     .btn.secondary {
       background: transparent;
       border-color: var(--border);
       color: var(--text);
+    }
+    .btn.ghost {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--muted);
+    }
+    .btn.active {
+      background: var(--accent);
+      border-color: transparent;
+      color: #fff;
     }
     code {
       background: #0b0f14;
@@ -58,29 +69,54 @@
       border-radius: 6px;
       padding: 2px 6px;
     }
+    pre {
+      background: #0b0f14;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      overflow-x: auto;
+    }
     ul { margin-top: 8px; }
     .ok { color: var(--ok); }
     .warn { color: var(--warn); }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
   <main class="wrap">
     <section class="card">
       <h1>Download ApzCODE</h1>
-      <p class="muted">One-click installer from the latest public release.</p>
+      <p class="muted">Pick channel, click download, then run installer.</p>
+      <div class="row" style="margin-bottom:10px">
+        <button id="stableBtn" class="btn active" type="button">Stable</button>
+        <button id="betaBtn" class="btn ghost" type="button">Beta</button>
+      </div>
       <div class="row">
         <a id="primaryDownload" class="btn" href="https://github.com/Kooban64/apzcode-desktop/releases" target="_blank" rel="noopener noreferrer">Open Releases</a>
+        <button id="downloadedBtn" class="btn secondary" type="button">I downloaded it</button>
         <a class="btn secondary" href="https://github.com/Kooban64/apzcode-desktop/releases" target="_blank" rel="noopener noreferrer">All Versions</a>
       </div>
       <p id="status" class="muted" style="margin-top:12px">Detecting latest release...</p>
+      <p id="assetHint" class="muted"></p>
+    </section>
+
+    <section id="assistantCard" class="card hidden">
+      <h2>Install Assistant</h2>
+      <p class="muted">After download finishes, use the command/steps for your platform.</p>
+      <div id="platformInstall"></div>
+      <div class="row">
+        <button id="copyWingetBtn" class="btn secondary hidden" type="button">Copy winget command</button>
+        <span id="copyStatus" class="muted"></span>
+      </div>
     </section>
 
     <section class="card">
-      <h2 style="margin-top:0">Install</h2>
+      <h2>Fast Paths</h2>
       <ul>
-        <li>Windows: run the downloaded <code>.exe</code> installer.</li>
+        <li>Windows: run downloaded <code>.exe</code> (recommended user setup).</li>
+        <li>Windows CLI: <code>winget install ApzCode.ApzCODE</code> (once package is published).</li>
         <li>macOS: open <code>.dmg</code> and drag to Applications.</li>
-        <li>Linux: install <code>.deb</code>/<code>.rpm</code> with your package manager.</li>
+        <li>Linux: install <code>.deb</code>/<code>.rpm</code> with package manager.</li>
       </ul>
       <p class="muted">Need another build? Use <strong>All Versions</strong>.</p>
     </section>
@@ -90,8 +126,21 @@
     (async function () {
       const owner = "Kooban64";
       const repo = "apzcode-desktop";
+      const wingetId = "ApzCode.ApzCODE";
+
       const status = document.getElementById("status");
       const primary = document.getElementById("primaryDownload");
+      const assetHint = document.getElementById("assetHint");
+      const stableBtn = document.getElementById("stableBtn");
+      const betaBtn = document.getElementById("betaBtn");
+      const downloadedBtn = document.getElementById("downloadedBtn");
+      const assistantCard = document.getElementById("assistantCard");
+      const platformInstall = document.getElementById("platformInstall");
+      const copyWingetBtn = document.getElementById("copyWingetBtn");
+      const copyStatus = document.getElementById("copyStatus");
+
+      let channel = "stable";
+      let selectedAssetName = "";
 
       function detectPlatform() {
         const ua = navigator.userAgent.toLowerCase();
@@ -102,7 +151,6 @@
       }
 
       function pickAsset(assets, platform) {
-        const names = assets.map(a => a.name.toLowerCase());
         const byName = n => assets.find(a => a.name.toLowerCase().includes(n));
 
         if (platform === "windows") {
@@ -121,35 +169,136 @@
           || assets[0];
       }
 
-      try {
-        const api = `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
+      function setChannelButtons() {
+        stableBtn.classList.toggle("active", channel === "stable");
+        stableBtn.classList.toggle("ghost", channel !== "stable");
+        betaBtn.classList.toggle("active", channel === "beta");
+        betaBtn.classList.toggle("ghost", channel !== "beta");
+      }
+
+      function installAssistantMarkup(platform) {
+        if (platform === "windows") {
+          copyWingetBtn.classList.remove("hidden");
+          return `
+            <ol>
+              <li>Open <code>${selectedAssetName || "ApzCODEUserSetup.exe"}</code>.</li>
+              <li>Approve UAC and complete install wizard.</li>
+              <li>Optional command-line install:</li>
+            </ol>
+            <pre>winget install ${wingetId}</pre>
+          `;
+        }
+
+        copyWingetBtn.classList.add("hidden");
+        if (platform === "mac") {
+          return `
+            <ol>
+              <li>Open <code>${selectedAssetName || "ApzCODE.dmg"}</code>.</li>
+              <li>Drag ApzCODE to Applications.</li>
+              <li>Launch from Applications.</li>
+            </ol>
+          `;
+        }
+
+        if (platform === "linux") {
+          return `
+            <ol>
+              <li>Install package from terminal (example for .deb):</li>
+            </ol>
+            <pre>sudo apt install ./apzcode_&lt;version&gt;_amd64.deb</pre>
+          `;
+        }
+
+        return `<p class="muted">Use your OS installer after download completes.</p>`;
+      }
+
+      async function fetchRelease(targetChannel) {
+        const api = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=30`;
         const res = await fetch(api, { headers: { Accept: "application/vnd.github+json" } });
         if (!res.ok) throw new Error(`GitHub API status ${res.status}`);
-        const rel = await res.json();
-        const assets = rel.assets || [];
-        const platform = detectPlatform();
+        const releases = await res.json();
+        if (!Array.isArray(releases) || releases.length === 0) return null;
 
-        if (!assets.length) {
-          status.textContent = "No installer assets in latest release yet. Open All Versions.";
-          status.className = "warn";
-          return;
+        if (targetChannel === "beta") {
+          return releases.find(r => r.prerelease && !r.draft) || null;
         }
-
-        const chosen = pickAsset(assets, platform);
-        if (!chosen) {
-          status.textContent = "No matching installer found for your OS yet.";
-          status.className = "warn";
-          return;
-        }
-
-        primary.href = chosen.browser_download_url;
-        primary.textContent = `Download ${chosen.name}`;
-        status.textContent = `Latest: ${rel.tag_name} • Recommended for ${platform}`;
-        status.className = "ok";
-      } catch (e) {
-        status.textContent = "Could not fetch latest release automatically. Use All Versions.";
-        status.className = "warn";
+        return releases.find(r => !r.prerelease && !r.draft) || null;
       }
+
+      async function refreshDownload() {
+        const platform = detectPlatform();
+        status.textContent = "Resolving release...";
+        status.className = "muted";
+        assetHint.textContent = "";
+
+        try {
+          const rel = await fetchRelease(channel);
+          if (!rel) {
+            status.textContent = `No ${channel} release available yet.`;
+            status.className = "warn";
+            primary.href = `https://github.com/${owner}/${repo}/releases`;
+            primary.textContent = "Open Releases";
+            return;
+          }
+
+          const assets = rel.assets || [];
+          if (!assets.length) {
+            status.textContent = `Release ${rel.tag_name} has no assets yet.`;
+            status.className = "warn";
+            primary.href = `https://github.com/${owner}/${repo}/releases/tag/${rel.tag_name}`;
+            primary.textContent = "Open Release";
+            return;
+          }
+
+          const chosen = pickAsset(assets, platform);
+          if (!chosen) {
+            status.textContent = "No matching installer found for your OS yet.";
+            status.className = "warn";
+            return;
+          }
+
+          selectedAssetName = chosen.name;
+          primary.href = chosen.browser_download_url;
+          primary.textContent = `Download ${chosen.name}`;
+          status.textContent = `${channel.toUpperCase()} ${rel.tag_name} • Recommended for ${platform}`;
+          status.className = "ok";
+          assetHint.textContent = `Asset size: ${Math.round((chosen.size || 0) / (1024 * 1024))} MB`;
+          platformInstall.innerHTML = installAssistantMarkup(platform);
+        } catch (e) {
+          status.textContent = "Could not fetch latest release automatically. Use All Versions.";
+          status.className = "warn";
+        }
+      }
+
+      stableBtn.addEventListener("click", async () => {
+        channel = "stable";
+        setChannelButtons();
+        await refreshDownload();
+      });
+
+      betaBtn.addEventListener("click", async () => {
+        channel = "beta";
+        setChannelButtons();
+        await refreshDownload();
+      });
+
+      downloadedBtn.addEventListener("click", () => {
+        assistantCard.classList.remove("hidden");
+        assistantCard.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+
+      copyWingetBtn.addEventListener("click", async () => {
+        const cmd = `winget install ${wingetId}`;
+        try {
+          await navigator.clipboard.writeText(cmd);
+          copyStatus.textContent = "Copied.";
+        } catch (_) {
+          copyStatus.textContent = `Copy failed. Use: ${cmd}`;
+        }
+      });
+
+      setChannelButtons();
+      await refreshDownload();
     })();
   </script>
 </body>
