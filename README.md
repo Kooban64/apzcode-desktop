@@ -26,6 +26,8 @@ Users open the site, click Download, and install:
 3. Upload artifacts to that release.
 4. The checksum workflow auto-attaches `SHA256SUMS.txt`.
 
+For Windows-specific publishing helper, see `WINDOWS-RELEASE.md`.
+
 ## Notes
 
 - The download page reads the latest release from the GitHub API.
